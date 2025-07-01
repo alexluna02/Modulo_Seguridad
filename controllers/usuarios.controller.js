@@ -146,11 +146,11 @@ const loginUsuario = async (req, res) => {
       [usuario]
     );
     if (result.rows.length === 0) {
-      return res.status(401).send('Usuario o contraseña incorrectos');
+      return res.status(401).json({ message: 'Usuario o contraseña incorrectos' });
     }
     const user = result.rows[0];
     if (user.contrasena !== contrasena) {
-      return res.status(401).send('Usuario o contraseña incorrectos');
+      return res.status(401).json({ message: 'Usuario o contraseña incorrectos' });
     }
 
     await registrarAuditoria({
@@ -165,7 +165,7 @@ const loginUsuario = async (req, res) => {
     res.json({ mensaje: 'Login exitoso', usuario: user });
   } catch (err) {
     console.error(err);
-    res.status(500).send('Error del servidor');
+    res.status(500).json({ message: 'Error del servidor' });
   }
 };
 
