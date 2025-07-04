@@ -1,5 +1,6 @@
 const pool = require('../db');
 
+// Función principal que inserta en la base de datos
 async function registrarAuditoria({
   accion,
   modulo,
@@ -13,11 +14,12 @@ async function registrarAuditoria({
       accion, modulo, tabla, id_usuario, details, timestamp, nombre_rol
     ) VALUES ($1, $2, $3, $4, $5, NOW(), $6)
   `;
+
   const values = [
     accion,
     modulo,
     tabla,
-    id_usuario, // Permitir null si no hay usuario
+    id_usuario,
     details ? JSON.stringify(details) : null,
     nombre_rol
   ];
@@ -26,10 +28,24 @@ async function registrarAuditoria({
     await pool.query(query, values);
   } catch (error) {
     console.error('Error al registrar auditoría:', error.message);
-    throw error; // Propagar el error al controlador que llama
+    throw error;
   }
 }
 
+// Endpoint POST para microservicios
+const auditoriamodulos = async (req, res) => {
+  const { accion, modulo, tabla, id_usuario, details, nombre_rol } = req.body;
+
+  try {
+    await registrarAuditoria({ accion, modulo, tabla, id_usuario, details, nombre_rol });
+    res.status(201).json({ mensaje: 'Auditoría registrada correctamente' });
+  } catch (error) {
+    console.error('Error al registrar auditoría vía POST:', error.message);
+    res.status(500).json({ mensaje: 'Error al registrar auditoría', error: error.message });
+  }
+};
+
+// GET /auditoria
 const getAllAuditoria = async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM auditoria ORDER BY timestamp DESC');
@@ -40,6 +56,7 @@ const getAllAuditoria = async (req, res) => {
   }
 };
 
+// GET /auditoria/:id
 const getAuditoriaById = async (req, res) => {
   const { id } = req.params;
   try {
@@ -54,9 +71,10 @@ const getAuditoriaById = async (req, res) => {
   }
 };
 
-// Export
+// Exportación
 module.exports = {
-  registrarAuditoria,
+  registrarAuditoria,             // función reutilizable
+  auditoriamodulos,  // controlador POST
   getAllAuditoria,
   getAuditoriaById
 };
