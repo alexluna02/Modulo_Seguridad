@@ -39,6 +39,9 @@ app.use('/api/usuarios_roles', usuariosRolesRoutes);
 const rolesPermisosRoutes = require('./routes/roles_permisos.routes');
 app.use('/api/roles_permisos', rolesPermisosRoutes);
 
+const modulosRoutes = require('./routes/modulos.routes');
+app.use('/api/modulos', modulosRoutes);
+
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // Iniciar servidor

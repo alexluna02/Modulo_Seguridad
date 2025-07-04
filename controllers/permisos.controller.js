@@ -1,23 +1,11 @@
 const pool = require('../db');
-const { registrarAuditoria } = require('../controllers/auditoria.controller');
 
 // Obtener todos los permisos
 const getAllPermisos = async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM permisos ORDER BY id_permiso');
-
-    await registrarAuditoria({
-      accion: 'SELECT',
-      modulo: 'seguridad',
-      tabla: 'permisos',
-      id_usuario: req.usuario?.id_usuario || null,
-      details: { consulta: 'SELECT * FROM permisos' },
-      nombre_rol: req.usuario?.nombre_rol || 'Sistema'
-    });
-
     res.json(result.rows);
   } catch (err) {
-    console.error(err);
     res.status(500).send('Error del servidor');
   }
 };
@@ -28,90 +16,42 @@ const getPermisoById = async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM permisos WHERE id_permiso = $1', [id]);
     if (result.rows.length === 0) return res.status(404).send('Permiso no encontrado');
-
-    await registrarAuditoria({
-      accion: 'SELECT',
-      modulo: 'seguridad',
-      tabla: 'permisos',
-      id_usuario: req.usuario?.id_usuario || null,
-      details: { consulta: 'SELECT * FROM permisos WHERE id_permiso = $1', parametros: [id] },
-      nombre_rol: req.usuario?.nombre_rol || 'Sistema'
-    });
-
     res.json(result.rows[0]);
   } catch (err) {
-    console.error(err);
     res.status(500).send('Error del servidor');
   }
 };
 
 // Crear permiso
 const createPermiso = async (req, res) => {
-  const { nombre_permiso, descripcion, estado } = req.body;
-
-  if (typeof estado !== 'boolean') {
-    return res.status(400).send('El campo "estado" debe ser booleano');
+  const { nombre_permiso, descripcion, url_permiso, id_modulo } = req.body;
+  if (!nombre_permiso || !url_permiso || !id_modulo) {
+    return res.status(400).send('Faltan campos obligatorios');
   }
-
   try {
     const result = await pool.query(
-      'INSERT INTO permisos (nombre_permiso, descripcion, estado) VALUES ($1, $2, $3) RETURNING *',
-      [nombre_permiso, descripcion, estado]
+      'INSERT INTO permisos (nombre_permiso, descripcion, url_permiso, id_modulo) VALUES ($1, $2, $3, $4) RETURNING *',
+      [nombre_permiso, descripcion, url_permiso, id_modulo]
     );
-
-    await registrarAuditoria({
-      accion: 'INSERT',
-      modulo: 'seguridad',
-      tabla: 'permisos',
-      id_usuario: req.usuario?.id_usuario || null,
-      details: result.rows[0],
-      nombre_rol: req.usuario?.nombre_rol || 'Sistema'
-    });
-
     res.status(201).json(result.rows[0]);
   } catch (err) {
-    console.error(err);
-    if (err.code === '23505') {
-      res.status(400).send('El nombre del permiso ya existe');
-    } else {
-      res.status(500).send('Error del servidor');
-    }
+    res.status(500).send('Error del servidor');
   }
 };
 
 // Actualizar permiso
 const updatePermiso = async (req, res) => {
   const { id } = req.params;
-  const { nombre_permiso, descripcion, estado } = req.body;
-
-  if (typeof estado !== 'boolean') {
-    return res.status(400).send('El campo "estado" debe ser booleano');
-  }
-
+  const { nombre_permiso, descripcion, url_permiso, id_modulo } = req.body;
   try {
     const result = await pool.query(
-      'UPDATE permisos SET nombre_permiso = $1, descripcion = $2, estado = $3 WHERE id_permiso = $4 RETURNING *',
-      [nombre_permiso, descripcion, estado, id]
+      'UPDATE permisos SET nombre_permiso = $1, descripcion = $2, url_permiso = $3, id_modulo = $4 WHERE id_permiso = $5 RETURNING *',
+      [nombre_permiso, descripcion, url_permiso, id_modulo, id]
     );
     if (result.rows.length === 0) return res.status(404).send('Permiso no encontrado');
-
-    await registrarAuditoria({
-      accion: 'UPDATE',
-      modulo: 'seguridad',
-      tabla: 'permisos',
-      id_usuario: req.usuario?.id_usuario || null,
-      details: result.rows[0],
-      nombre_rol: req.usuario?.nombre_rol || 'Sistema'
-    });
-
     res.json(result.rows[0]);
   } catch (err) {
-    console.error(err);
-    if (err.code === '23505') {
-      res.status(400).send('El nombre del permiso ya existe');
-    } else {
-      res.status(500).send('Error del servidor');
-    }
+    res.status(500).send('Error del servidor');
   }
 };
 
@@ -124,19 +64,8 @@ const deletePermiso = async (req, res) => {
       [id]
     );
     if (result.rows.length === 0) return res.status(404).send('Permiso no encontrado');
-
-    await registrarAuditoria({
-      accion: 'DELETE',
-      modulo: 'seguridad',
-      tabla: 'permisos',
-      id_usuario: req.usuario?.id_usuario || null,
-      details: result.rows[0],
-      nombre_rol: req.usuario?.nombre_rol || 'Sistema'
-    });
-
     res.json({ mensaje: 'Permiso eliminado correctamente' });
   } catch (err) {
-    console.error(err);
     res.status(500).send('Error del servidor');
   }
 };

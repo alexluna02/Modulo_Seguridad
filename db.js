@@ -8,8 +8,10 @@ const pool = new Pool({
   password: process.env.DB_PASSWORD,
   port: Number(process.env.DB_PORT),
   ssl: {
-    rejectUnauthorized: false
-  }
+  rejectUnauthorized: false
+   }
+  // esto en swagger.json
+  // "url": "https://aplicacion-de-seguridad-v2.onrender.com/"
 });
 
 module.exports = pool;

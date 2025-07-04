@@ -1,5 +1,6 @@
 const pool = require('../db');
-const { registrarAuditoria } = require('../controllers/auditoria.controller');
+const { registrarAuditoria } = require('./auditoria.controller');
+const bcrypt = require('bcryptjs');
 
 const getAllUsuarios = async (req, res) => {
   try {
@@ -46,11 +47,15 @@ const getUsuarioById = async (req, res) => {
 };
 
 const createUsuario = async (req, res) => {
-  const { usuario, contrasena, estado } = req.body;
+  const { usuario, contrasena, nombre, estado } = req.body;
+  if (!usuario || !contrasena || !nombre) {
+    return res.status(400).send('Faltan campos obligatorios');
+  }
   try {
+    const hash = await bcrypt.hash(contrasena, 10);
     const result = await pool.query(
-      'INSERT INTO usuarios (usuario, contrasena, estado) VALUES ($1, $2, $3) RETURNING *',
-      [usuario, contrasena, estado ?? true]
+      'INSERT INTO usuarios (usuario, contrasena, nombre, estado) VALUES ($1, $2, $3, $4) RETURNING *',
+      [usuario, hash, nombre, estado ?? true]
     );
 
     await registrarAuditoria({
@@ -65,21 +70,21 @@ const createUsuario = async (req, res) => {
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error(err);
-    if (err.code === '23505') {
-      res.status(400).send('El usuario ya existe');
-    } else {
-      res.status(500).send('Error del servidor');
-    }
+    res.status(500).send('Error del servidor');
   }
 };
 
 const updateUsuario = async (req, res) => {
   const { id } = req.params;
-  const { usuario, contrasena, estado } = req.body;
+  const { usuario, contrasena, nombre, estado } = req.body;
   try {
+    let hash = contrasena;
+    if (contrasena) {
+      hash = await bcrypt.hash(contrasena, 10);
+    }
     const result = await pool.query(
-      'UPDATE usuarios SET usuario = $1, contrasena = $2, estado = $3 WHERE id_usuario = $4 RETURNING *',
-      [usuario, contrasena, estado, id]
+      'UPDATE usuarios SET usuario = $1, contrasena = $2, nombre = $3, estado = $4 WHERE id_usuario = $5 RETURNING *',
+      [usuario, hash, nombre, estado, id]
     );
     if (result.rows.length === 0) {
       return res.status(404).send('Usuario no encontrado');
@@ -97,11 +102,7 @@ const updateUsuario = async (req, res) => {
     res.json(result.rows[0]);
   } catch (err) {
     console.error(err);
-    if (err.code === '23505') {
-      res.status(400).send('El usuario ya existe');
-    } else {
-      res.status(500).send('Error del servidor');
-    }
+    res.status(500).send('Error del servidor');
   }
 };
 
@@ -138,34 +139,53 @@ const deleteUsuario = async (req, res) => {
   }
 };
 
-const loginUsuario = async (req, res) => {
-  const { usuario, contrasena } = req.body;
-  try {
-    const result = await pool.query(
-      'SELECT * FROM usuarios WHERE usuario = $1',
-      [usuario]
-    );
-    if (result.rows.length === 0) {
-      return res.status(401).json({ message: 'Usuario o contraseña incorrectos' });
-    }
-    const user = result.rows[0];
-    if (user.contrasena !== contrasena) {
-      return res.status(401).json({ message: 'Usuario o contraseña incorrectos' });
-    }
 
+
+const login = async (req, res) => {
+  const { usuario, contrasena, id_modulo } = req.body;
+  if (!usuario || !contrasena || !id_modulo) {
+    return res.status(400).json({ mensaje: 'Faltan datos requeridos' });
+  }
+  try {
+    const result = await pool.query('SELECT * FROM usuarios WHERE usuario = $1', [usuario]);
+    if (result.rows.length === 0) return res.status(401).json({ mensaje: 'Usuario o contraseña incorrectos' });
+    const user = result.rows[0];
+    const valid = await bcrypt.compare(contrasena, user.contrasena);
+    if (!valid) return res.status(401).json({ mensaje: 'Usuario o contraseña incorrectos' });
+
+    // Obtener el rol principal del usuario (puedes ajustar la consulta según tu modelo)
+    const rolResult = await pool.query(
+      `SELECT r.nombre_rol
+       FROM roles r
+       JOIN usuarios_roles ur ON r.id_rol = ur.id_rol
+       WHERE ur.id_usuario = $1
+       LIMIT 1`,
+      [user.id_usuario]
+    );
+    const nombre_rol = rolResult.rows.length > 0 ? rolResult.rows[0].nombre_rol : 'Sin rol';
+
+    // Auditoría del login
     await registrarAuditoria({
       accion: 'LOGIN',
-      modulo: 'seguridad',
-      tabla: 'usuarios',
+      modulo: id_modulo,
+      tabla: '-',
       id_usuario: user.id_usuario,
       details: { usuario: user.usuario },
-      nombre_rol: req.usuario?.nombre_rol || 'Sistema'
+      nombre_rol
     });
 
-    res.json({ mensaje: 'Login exitoso', usuario: user });
+    const permisosQuery = `
+      SELECT p.*
+      FROM permisos p
+      JOIN roles_permisos rp ON p.id_permiso = rp.id_permiso
+      JOIN usuarios_roles ur ON rp.id_rol = ur.id_rol
+      WHERE ur.id_usuario = $1 AND p.id_modulo = $2
+    `;
+    const permisosResult = await pool.query(permisosQuery, [user.id_usuario, id_modulo]);
+    res.json({ permisos: permisosResult.rows });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Error del servidor' });
+    res.status(500).json({ mensaje: 'Error del servidor' });
   }
 };
 
@@ -175,5 +195,6 @@ module.exports = {
   createUsuario,
   updateUsuario,
   deleteUsuario,
-  loginUsuario
+  login,
+
 };
