@@ -24,14 +24,14 @@ const getPermisoById = async (req, res) => {
 
 // Crear permiso
 const createPermiso = async (req, res) => {
-  const { nombre_permiso, descripcion, url_permiso, id_modulo } = req.body;
-  if (!nombre_permiso || !url_permiso || !id_modulo) {
+  const { nombre_permiso, descripcion, url_permiso, id_modulo, estado } = req.body;
+  if (!nombre_permiso || !url_permiso || !id_modulo || typeof estado === 'undefined') {
     return res.status(400).send('Faltan campos obligatorios');
   }
   try {
     const result = await pool.query(
-      'INSERT INTO permisos (nombre_permiso, descripcion, url_permiso, id_modulo) VALUES ($1, $2, $3, $4) RETURNING *',
-      [nombre_permiso, descripcion, url_permiso, id_modulo]
+      'INSERT INTO permisos (nombre_permiso, descripcion, url_permiso, id_modulo, estado) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [nombre_permiso, descripcion, url_permiso, id_modulo, estado]
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
@@ -42,11 +42,11 @@ const createPermiso = async (req, res) => {
 // Actualizar permiso
 const updatePermiso = async (req, res) => {
   const { id } = req.params;
-  const { nombre_permiso, descripcion, url_permiso, id_modulo } = req.body;
+  const { nombre_permiso, descripcion, url_permiso, id_modulo, estado } = req.body;
   try {
     const result = await pool.query(
-      'UPDATE permisos SET nombre_permiso = $1, descripcion = $2, url_permiso = $3, id_modulo = $4 WHERE id_permiso = $5 RETURNING *',
-      [nombre_permiso, descripcion, url_permiso, id_modulo, id]
+      'UPDATE permisos SET nombre_permiso = $1, descripcion = $2, url_permiso = $3, id_modulo = $4, estado = $5 WHERE id_permiso = $6 RETURNING *',
+      [nombre_permiso, descripcion, url_permiso, id_modulo, estado, id]
     );
     if (result.rows.length === 0) return res.status(404).send('Permiso no encontrado');
     res.json(result.rows[0]);
