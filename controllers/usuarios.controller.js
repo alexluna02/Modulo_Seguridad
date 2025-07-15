@@ -1,7 +1,14 @@
 const pool = require('../db');
 const { registrarAuditoria } = require('./auditoria.controller');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 
+// Clave secreta JWT
+const SECRET_KEY = process.env.JWT_SECRET || 'mi_clave_ultra_segura';
+
+// ========================
+// Obtener todos los usuarios
+// ========================
 const getAllUsuarios = async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM usuarios');
@@ -22,6 +29,9 @@ const getAllUsuarios = async (req, res) => {
   }
 };
 
+// ========================
+// Obtener un usuario por ID
+// ========================
 const getUsuarioById = async (req, res) => {
   const { id } = req.params;
   try {
@@ -46,6 +56,9 @@ const getUsuarioById = async (req, res) => {
   }
 };
 
+// ========================
+// Crear nuevo usuario
+// ========================
 const createUsuario = async (req, res) => {
   const { usuario, contrasena, nombre, estado } = req.body;
   if (!usuario || !contrasena || !nombre) {
@@ -74,6 +87,9 @@ const createUsuario = async (req, res) => {
   }
 };
 
+// ========================
+// Actualizar usuario
+// ========================
 const updateUsuario = async (req, res) => {
   const { id } = req.params;
   const { usuario, contrasena, nombre, estado } = req.body;
@@ -106,6 +122,9 @@ const updateUsuario = async (req, res) => {
   }
 };
 
+// ========================
+// Eliminar usuario
+// ========================
 const deleteUsuario = async (req, res) => {
   const { id } = req.params;
   try {
@@ -128,8 +147,6 @@ const deleteUsuario = async (req, res) => {
       });
     } catch (auditError) {
       console.error('Error al registrar auditoría:', auditError.message);
-      // Opcional: Descomenta para fallar si la auditoría falla
-      // throw new Error('Fallo al registrar la auditoría');
     }
 
     res.json({ mensaje: 'Usuario eliminado correctamente' });
@@ -139,8 +156,9 @@ const deleteUsuario = async (req, res) => {
   }
 };
 
-
-
+// ========================
+// Login con JWT
+// ========================
 const login = async (req, res) => {
   const { usuario, contrasena, id_modulo } = req.body;
   if (!usuario || !contrasena || !id_modulo) {
@@ -149,11 +167,12 @@ const login = async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM usuarios WHERE usuario = $1', [usuario]);
     if (result.rows.length === 0) return res.status(401).json({ mensaje: 'Usuario o contraseña incorrectos' });
+
     const user = result.rows[0];
     const valid = await bcrypt.compare(contrasena, user.contrasena);
     if (!valid) return res.status(401).json({ mensaje: 'Usuario o contraseña incorrectos' });
 
-    // Obtener el rol principal del usuario (puedes ajustar la consulta según tu modelo)
+    // Obtener el rol principal
     const rolResult = await pool.query(
       `SELECT r.nombre_rol
        FROM roles r
@@ -164,7 +183,7 @@ const login = async (req, res) => {
     );
     const nombre_rol = rolResult.rows.length > 0 ? rolResult.rows[0].nombre_rol : 'Sin rol';
 
-    // Auditoría del login
+    // Registrar auditoría del login
     await registrarAuditoria({
       accion: 'LOGIN',
       modulo: id_modulo,
@@ -174,6 +193,7 @@ const login = async (req, res) => {
       nombre_rol
     });
 
+    // Obtener permisos del módulo
     const permisosQuery = `
       SELECT p.*
       FROM permisos p
@@ -182,19 +202,42 @@ const login = async (req, res) => {
       WHERE ur.id_usuario = $1 AND p.id_modulo = $2
     `;
     const permisosResult = await pool.query(permisosQuery, [user.id_usuario, id_modulo]);
-    res.json({ permisos: permisosResult.rows });
+
+    // Generar JWT
+    const tokenPayload = {
+      id_usuario: user.id_usuario,
+      usuario: user.usuario,
+      nombre: user.nombre,
+      nombre_rol
+    };
+
+    const token = jwt.sign(tokenPayload, SECRET_KEY, { expiresIn: '2h' });
+
+    // Enviar respuesta
+    res.json({
+      token,
+      usuario: {
+        id_usuario: user.id_usuario,
+        usuario: user.usuario,
+        nombre: user.nombre,
+        nombre_rol
+      },
+      permisos: permisosResult.rows
+    });
   } catch (err) {
     console.error(err);
     res.status(500).json({ mensaje: 'Error del servidor' });
   }
 };
 
+// ========================
+// Exportar controladores
+// ========================
 module.exports = {
   getAllUsuarios,
   getUsuarioById,
   createUsuario,
   updateUsuario,
   deleteUsuario,
-  login,
-
+  login
 };
