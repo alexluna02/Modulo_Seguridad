@@ -2,7 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const swaggerUi = require('swagger-ui-express');
-const swaggerDocument = require('./swagger.json'); // O el path a tu archivo swagger
+const swaggerDocument = require('./swagger.json');
 const pool = require('./db');
 
 const app = express();
@@ -10,26 +10,23 @@ const port = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json()); 
 
 // Ruta básica
 app.get('/', (req, res) => {
   res.send('API de Seguridad');
 });
 
-// Rutas de usuarios
+// Rutas
 const usuariosRoutes = require('./routes/usuarios.routes');
 app.use('/api/usuarios', usuariosRoutes);
 
-// Rutas de roles
 const rolesRoutes = require('./routes/roles.routes');
 app.use('/api/roles', rolesRoutes);
 
-// Rutas de permisos
 const permisosRoutes = require('./routes/permisos.routes');
 app.use('/api/permisos', permisosRoutes);
 
-// Rutas de auditoría
 const auditoriaRoutes = require('./routes/auditoria.routes');
 app.use('/api/auditoria', auditoriaRoutes);
 
@@ -50,6 +47,7 @@ app.listen(port, () => {
   console.log(`Servidor corriendo en http://localhost:${port}/api-docs`);
 });
 
+// Verificar conexión BD
 pool.query('SELECT NOW()', (err, res) => {
   if (err) {
     console.error('Error de conexión a la base de datos:', err);
@@ -57,4 +55,3 @@ pool.query('SELECT NOW()', (err, res) => {
     console.log('Conexión exitosa a la base de datos:', res.rows[0]);
   }
 });
-
