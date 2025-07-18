@@ -1,14 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const controller = require('../controllers/roles_permisos.controller');
+const { getPermisosByRol, addPermisoToRol, removePermisoFromRol } = require('../controllers/roles_permisos.controller');
 
-// Obtener todos los permisos de un rol
-router.get('/:id_rol', controller.getPermisosByRol);
-
-// Asignar un permiso a un rol
-router.post('/', controller.addPermisoToRol);
-
-// Quitar un permiso de un rol
-router.delete('/', controller.removePermisoFromRol);
+router.get('/roles/:id_rol/permisos', getPermisosByRol);
+router.post('/roles/permisos', addPermisoToRol);
+router.delete('/roles/permisos', removePermisoFromRol);
 
 module.exports = router;

@@ -5,9 +5,12 @@ const getPermisosByRol = async (req, res) => {
   const { id_rol } = req.params;
   try {
     const result = await pool.query(
-      `SELECT p.* FROM roles_permisos rp
+      `SELECT p.id_permiso, p.nombre_permiso, p.descripcion, p.url_permiso, p.estado, m.nombre_modulo
+       FROM roles_permisos rp
        JOIN permisos p ON rp.id_permiso = p.id_permiso
-       WHERE rp.id_rol = $1`, [id_rol]
+       JOIN modulos m ON p.id_modulo = m.id_modulo
+       WHERE rp.id_rol = $1`,
+      [id_rol]
     );
     res.json(result.rows);
   } catch (err) {
