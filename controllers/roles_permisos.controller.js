@@ -50,8 +50,47 @@ const removePermisoFromRol = async (req, res) => {
   }
 };
 
+
+
+// Asignar múltiples permisos a un rol
+const asignarPermisosRol = async (req, res) => {
+  const { permisos } = req.body;
+  const { id_rol } = req.params;
+
+  if (!Array.isArray(permisos)) {
+    return res.status(400).json({ error: 'El campo permisos debe ser un array' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Primero eliminamos los permisos actuales del rol
+    await client.query('DELETE FROM roles_permisos WHERE id_rol = $1', [id_rol]);
+
+    // Insertamos los nuevos permisos
+    for (const id_permiso of permisos) {
+      await client.query(
+        'INSERT INTO roles_permisos (id_rol, id_permiso) VALUES ($1, $2)',
+        [id_rol, id_permiso]
+      );
+    }
+
+    await client.query('COMMIT');
+    res.json({ success: true, message: 'Permisos asignados correctamente' });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error al asignar permisos:', err);
+    res.status(500).json({ success: false, error: 'Error al asignar permisos' });
+  } finally {
+    client.release();
+  }
+};
+
+
 module.exports = {
   getPermisosByRol,
   addPermisoToRol,
-  removePermisoFromRol
+  removePermisoFromRol,
+  asignarPermisosRol
 };
