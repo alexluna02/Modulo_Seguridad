@@ -2,11 +2,7 @@ const pool = require('../db');
 const { registrarAuditoria } = require('./auditoria.controller');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const cors = require('cors');
-app.use(cors({
-  origin: 'http://localhost:3001',
-  credentials: true
-}));
+
 // Clave secreta JWT
 const SECRET_KEY = process.env.JWT_SECRET || 'mi_clave_ultra_segura';
 
