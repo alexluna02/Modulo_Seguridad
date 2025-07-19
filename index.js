@@ -7,7 +7,7 @@ const pool = require('./db');
 
 const app = express();
 const port = process.env.PORT || 3000;
-
+require('dotenv').config();
 // Middleware
 app.use(cors());
 app.use(express.json());
