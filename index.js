@@ -1,15 +1,19 @@
-require('dotenv').config();
+require('dotenv').config(); // Solo una vez
 const express = require('express');
 const cors = require('cors');
 const swaggerUi = require('swagger-ui-express');
 const swaggerDocument = require('./swagger.json');
 const pool = require('./db');
+const authenticateToken = require('./middleware/auth'); // Importar el middleware
 
 const app = express();
 const port = process.env.PORT || 3000;
-require('dotenv').config();
+
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: 'http://localhost:3001', // Restringir a tu frontend
+  credentials: true,
+}));
 app.use(express.json());
 
 // Verificar conexión a la base de datos antes de cada solicitud
@@ -18,7 +22,7 @@ const checkDbConnection = async (req, res, next) => {
     await pool.query('SELECT 1');
     next();
   } catch (err) {
-    console.error('Error de conexión a la base de datos:', err);
+    console.error('Error de conexión a la base de datos:', err.message);
     res.status(503).json({ error: 'Servicio no disponible: Problema con la base de datos' });
   }
 };
@@ -31,44 +35,41 @@ app.get('/', (req, res) => {
 
 // Rutas
 const usuariosRoutes = require('./routes/usuarios.routes');
-app.use('/api/usuarios', usuariosRoutes);
-
 const rolesRoutes = require('./routes/roles.routes');
-app.use('/api/roles', rolesRoutes);
-
 const permisosRoutes = require('./routes/permisos.routes');
-app.use('/api/permisos', permisosRoutes);
-
 const auditoriaRoutes = require('./routes/auditoria.routes');
-app.use('/api/auditoria', auditoriaRoutes);
-
 const usuariosRolesRoutes = require('./routes/usuarios_roles.routes');
-app.use('/api/usuarios_roles', usuariosRolesRoutes);
-
 const rolesPermisosRoutes = require('./routes/roles_permisos.routes');
-app.use('/api/roles_permisos', rolesPermisosRoutes);
-
 const modulosRoutes = require('./routes/modulos.routes');
-app.use('/api/modulos', modulosRoutes);
 
+// Aplicar middleware de autenticación a rutas protegidas
+app.use('/api/usuarios', usuariosRoutes); // Login es público, otras rutas protegidas
+app.use('/api/roles', authenticateToken, rolesRoutes);
+app.use('/api/permisos', authenticateToken, permisosRoutes);
+app.use('/api/auditoria', authenticateToken, auditoriaRoutes);
+app.use('/api/usuarios_roles', authenticateToken, usuariosRolesRoutes);
+app.use('/api/roles_permisos', authenticateToken, rolesPermisosRoutes);
+app.use('/api/modulos', authenticateToken, modulosRoutes);
+
+// Documentación Swagger
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
 // Middleware de errores
 app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Algo salió mal en el servidor' });
+  console.error('Error del servidor:', err.stack);
+  res.status(500).json({ error: 'Algo salió mal en el servidor', detalle: err.message });
 });
 
 // Iniciar servidor
 app.listen(port, () => {
   console.log(`Servidor corriendo en http://localhost:${port}`);
-  console.log(`Servidor corriendo en http://localhost:${port}/api-docs`);
+  console.log(`Documentación disponible en http://localhost:${port}/api-docs`);
 });
 
-// Verificar conexión inicial (opcional, para logging)
+// Verificar conexión inicial
 pool.query('SELECT NOW()', (err, res) => {
   if (err) {
-    console.error('Error de conexión inicial a la base de datos:', err);
+    console.error('Error de conexión inicial a la base de datos:', err.message);
   } else {
     console.log('Conexión inicial exitosa a la base de datos:', res.rows[0]);
   }
