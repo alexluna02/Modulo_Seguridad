@@ -4,7 +4,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 // Clave secreta JWT
-const SECRET_KEY = process.env.JWT_SECRET || 'mi_clave_ultra_segura';
+const SECRET_KEY = process.env.JWT_SECRET || 'SegkeyAlSpCyMs46';
+//const SECRET_KEY = process.env.JWT_SECRET || 'mi_clave_ultra_segura';
 
 // ========================
 // Obtener todos los usuarios
@@ -229,6 +230,23 @@ const login = async (req, res) => {
     res.status(500).json({ mensaje: 'Error del servidor' });
   }
 };
+const tokenValido = async (req, res) => {
+  const token = req.headers.authorization?.split(' ')[1];
+  console.log("Token recibido:", token); // ← Agrega esto para debug
+
+  if (!token) {
+    return res.status(401).json({ valido: false, error: 'Token no proporcionado' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, SECRET_KEY);
+    console.log("Token decodificado:", decoded); // ← Debug
+    res.json({ valido: true, usuario: decoded });
+  } catch (error) {
+    console.error("Error al verificar token:", error.message); // ← Debug
+    res.status(401).json({ valido: false, error: 'Token inválido o expirado' });
+  }
+};
 
 // ========================
 // Exportar controladores
@@ -239,5 +257,6 @@ module.exports = {
   createUsuario,
   updateUsuario,
   deleteUsuario,
-  login
+  login,
+  tokenValido
 };
