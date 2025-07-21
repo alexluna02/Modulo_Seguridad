@@ -3,9 +3,12 @@ const { registrarAuditoria } = require('./auditoria.controller');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-// Clave secreta JWT
-//const SECRET_KEY = process.env.JWT_SECRET || 'segkeyalspcyms';
 const SECRET_KEY = process.env.JWT_SECRET || 'mi_clave_ultra_segura';
+
+// Helper para obtener el token del header
+function extraerToken(req) {
+  return req.headers.authorization?.split(' ')[1] || null;
+}
 
 // ========================
 // Obtener todos los usuarios
@@ -13,13 +16,17 @@ const SECRET_KEY = process.env.JWT_SECRET || 'mi_clave_ultra_segura';
 const getAllUsuarios = async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM usuarios');
+    const token = extraerToken(req);
 
     await registrarAuditoria({
       accion: 'SELECT',
       modulo: 'seguridad',
       tabla: 'usuarios',
       id_usuario: req.usuario?.id_usuario || null,
-      details: { consulta: 'SELECT * FROM usuarios' },
+      details: {
+        consulta: 'SELECT * FROM usuarios',
+        token
+      },
       nombre_rol: req.usuario?.nombre_rol || 'Sistema'
     });
 
@@ -41,12 +48,18 @@ const getUsuarioById = async (req, res) => {
       return res.status(404).send('Usuario no encontrado');
     }
 
+    const token = extraerToken(req);
+
     await registrarAuditoria({
       accion: 'SELECT',
       modulo: 'seguridad',
       tabla: 'usuarios',
       id_usuario: req.usuario?.id_usuario || null,
-      details: { consulta: 'SELECT * FROM usuarios WHERE id_usuario = $1', parametros: [id] },
+      details: {
+        consulta: 'SELECT * FROM usuarios WHERE id_usuario = $1',
+        parametros: [id],
+        token
+      },
       nombre_rol: req.usuario?.nombre_rol || 'Sistema'
     });
 
@@ -72,12 +85,17 @@ const createUsuario = async (req, res) => {
       [usuario, hash, nombre, estado ?? true]
     );
 
+    const token = extraerToken(req);
+
     await registrarAuditoria({
       accion: 'INSERT',
       modulo: 'seguridad',
       tabla: 'usuarios',
       id_usuario: req.usuario?.id_usuario || null,
-      details: result.rows[0],
+      details: {
+        ...result.rows[0],
+        token
+      },
       nombre_rol: req.usuario?.nombre_rol || 'Sistema'
     });
 
@@ -107,12 +125,17 @@ const updateUsuario = async (req, res) => {
       return res.status(404).send('Usuario no encontrado');
     }
 
+    const token = extraerToken(req);
+
     await registrarAuditoria({
       accion: 'UPDATE',
       modulo: 'seguridad',
       tabla: 'usuarios',
       id_usuario: req.usuario?.id_usuario || null,
-      details: result.rows[0],
+      details: {
+        ...result.rows[0],
+        token
+      },
       nombre_rol: req.usuario?.nombre_rol || 'Sistema'
     });
 
@@ -137,18 +160,19 @@ const deleteUsuario = async (req, res) => {
       return res.status(404).send('Usuario no encontrado');
     }
 
-    try {
-      await registrarAuditoria({
-        accion: 'DELETE',
-        modulo: 'seguridad',
-        tabla: 'usuarios',
-        id_usuario: req.usuario?.id_usuario || null,
-        details: result.rows[0],
-        nombre_rol: req.usuario?.nombre_rol || 'Sistema'
-      });
-    } catch (auditError) {
-      console.error('Error al registrar auditoría:', auditError.message);
-    }
+    const token = extraerToken(req);
+
+    await registrarAuditoria({
+      accion: 'DELETE',
+      modulo: 'seguridad',
+      tabla: 'usuarios',
+      id_usuario: req.usuario?.id_usuario || null,
+      details: {
+        ...result.rows[0],
+        token
+      },
+      nombre_rol: req.usuario?.nombre_rol || 'Sistema'
+    });
 
     res.json({ mensaje: 'Usuario eliminado correctamente' });
   } catch (err) {
@@ -173,7 +197,6 @@ const login = async (req, res) => {
     const valid = await bcrypt.compare(contrasena, user.contrasena);
     if (!valid) return res.status(401).json({ mensaje: 'Usuario o contraseña incorrectos' });
 
-    // Obtener el rol principal
     const rolResult = await pool.query(
       `SELECT r.nombre_rol
        FROM roles r
@@ -184,37 +207,34 @@ const login = async (req, res) => {
     );
     const nombre_rol = rolResult.rows.length > 0 ? rolResult.rows[0].nombre_rol : 'Sin rol';
 
-    // Registrar auditoría del login
-    await registrarAuditoria({
-      accion: 'LOGIN',
-      modulo: id_modulo,
-      tabla: '-',
-      id_usuario: user.id_usuario,
-      details: { usuario: user.usuario },
-      nombre_rol
-    });
-
-    // Obtener permisos del módulo
-    const permisosQuery = `
+    const permisosResult = await pool.query(`
       SELECT p.*
       FROM permisos p
       JOIN roles_permisos rp ON p.id_permiso = rp.id_permiso
       JOIN usuarios_roles ur ON rp.id_rol = ur.id_rol
       WHERE ur.id_usuario = $1 AND p.id_modulo = $2
-    `;
-    const permisosResult = await pool.query(permisosQuery, [user.id_usuario, id_modulo]);
+    `, [user.id_usuario, id_modulo]);
 
-    // Generar JWT
     const tokenPayload = {
       id_usuario: user.id_usuario,
       usuario: user.usuario,
       nombre: user.nombre,
       nombre_rol
     };
-
     const token = jwt.sign(tokenPayload, SECRET_KEY, { expiresIn: '2h' });
 
-    // Enviar respuesta
+    await registrarAuditoria({
+      accion: 'LOGIN',
+      modulo: id_modulo,
+      tabla: '-',
+      id_usuario: user.id_usuario,
+      details: {
+        usuario: user.usuario,
+        token
+      },
+      nombre_rol
+    });
+
     res.json({
       token,
       usuario: {
@@ -230,20 +250,23 @@ const login = async (req, res) => {
     res.status(500).json({ mensaje: 'Error del servidor' });
   }
 };
-const tokenValido = async (req, res) => {
-  const token = req.headers.authorization?.split(' ')[1];
-  console.log("Token recibido:", token); // ← Agrega esto para debug
 
+// ========================
+// Verificar validez de token
+// ========================
+const tokenValido = async (req, res) => {
+  const token = extraerToken(req);
+  console.log("Token recibido:", token);
   if (!token) {
     return res.status(401).json({ valido: false, error: 'Token no proporcionado' });
   }
 
   try {
     const decoded = jwt.verify(token, SECRET_KEY);
-    console.log("Token decodificado:", decoded); // ← Debug
+    console.log("Token decodificado:", decoded);
     res.json({ valido: true, usuario: decoded });
   } catch (error) {
-    console.error("Error al verificar token:", error.message); // ← Debug
+    console.error("Error al verificar token:", error.message);
     res.status(401).json({ valido: false, error: 'Token inválido o expirado' });
   }
 };
