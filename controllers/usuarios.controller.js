@@ -7,8 +7,25 @@ const SECRET_KEY = process.env.JWT_SECRET || 'mi_clave_ultra_segura';
 
 // Helper para obtener el token del header
 function extraerToken(req) {
-  return req.headers.authorization?.split(' ')[1] || null;
+  const authHeader = req.headers.authorization;
+  console.log('Header authorization:', authHeader); // Depuración
+  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
+  return authHeader.split(' ')[1];
 }
+
+// Middleware de ejemplo (debes configurarlo en tu app)
+const autenticarToken = (req, res, next) => {
+  const token = extraerToken(req);
+  if (!token) return res.status(401).json({ mensaje: 'Token no proporcionado' });
+
+  try {
+    const decoded = jwt.verify(token, SECRET_KEY);
+    req.usuario = decoded; // Asigna el usuario decodificado
+    next();
+  } catch (error) {
+    res.status(401).json({ mensaje: 'Token inválido o expirado', error: error.message });
+  }
+};
 
 // ========================
 // Obtener todos los usuarios
@@ -25,15 +42,15 @@ const getAllUsuarios = async (req, res) => {
       id_usuario: req.usuario?.id_usuario || null,
       details: {
         consulta: 'SELECT * FROM usuarios',
-        token
+        token: token || 'Sin token' // Evitar null en logs
       },
       nombre_rol: req.usuario?.nombre_rol || 'Sistema'
     });
 
-    res.json(result.rows);
+    res.json({ data: result.rows });
   } catch (err) {
-    console.error(err);
-    res.status(500).send('Error del servidor');
+    console.error('Error en getAllUsuarios:', err);
+    res.status(500).json({ mensaje: 'Error del servidor', error: err.message });
   }
 };
 
@@ -45,7 +62,7 @@ const getUsuarioById = async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM usuarios WHERE id_usuario = $1', [id]);
     if (result.rows.length === 0) {
-      return res.status(404).send('Usuario no encontrado');
+      return res.status(404).json({ mensaje: 'Usuario no encontrado' });
     }
 
     const token = extraerToken(req);
@@ -58,15 +75,15 @@ const getUsuarioById = async (req, res) => {
       details: {
         consulta: 'SELECT * FROM usuarios WHERE id_usuario = $1',
         parametros: [id],
-        token
+        token: token || 'Sin token'
       },
       nombre_rol: req.usuario?.nombre_rol || 'Sistema'
     });
 
-    res.json(result.rows[0]);
+    res.json({ data: result.rows[0] });
   } catch (err) {
-    console.error(err);
-    res.status(500).send('Error del servidor');
+    console.error('Error en getUsuarioById:', err);
+    res.status(500).json({ mensaje: 'Error del servidor', error: err.message });
   }
 };
 
@@ -76,7 +93,7 @@ const getUsuarioById = async (req, res) => {
 const createUsuario = async (req, res) => {
   const { usuario, contrasena, nombre, estado } = req.body;
   if (!usuario || !contrasena || !nombre) {
-    return res.status(400).send('Faltan campos obligatorios');
+    return res.status(400).json({ mensaje: 'Faltan campos obligatorios' });
   }
   try {
     const hash = await bcrypt.hash(contrasena, 10);
@@ -86,6 +103,8 @@ const createUsuario = async (req, res) => {
     );
 
     const token = extraerToken(req);
+    const safeUserData = { ...result.rows[0] }; // Copia para sanitizar
+    delete safeUserData.contrasena; // Evitar guardar la contraseña
 
     await registrarAuditoria({
       accion: 'INSERT',
@@ -93,16 +112,16 @@ const createUsuario = async (req, res) => {
       tabla: 'usuarios',
       id_usuario: req.usuario?.id_usuario || null,
       details: {
-        ...result.rows[0],
-        token
+        ...safeUserData,
+        token: token || 'Sin token'
       },
       nombre_rol: req.usuario?.nombre_rol || 'Sistema'
     });
 
-    res.status(201).json(result.rows[0]);
+    res.status(201).json({ data: result.rows[0] });
   } catch (err) {
-    console.error(err);
-    res.status(500).send('Error del servidor');
+    console.error('Error en createUsuario:', err);
+    res.status(500).json({ mensaje: 'Error del servidor', error: err.message });
   }
 };
 
@@ -122,10 +141,12 @@ const updateUsuario = async (req, res) => {
       [usuario, hash, nombre, estado, id]
     );
     if (result.rows.length === 0) {
-      return res.status(404).send('Usuario no encontrado');
+      return res.status(404).json({ mensaje: 'Usuario no encontrado' });
     }
 
     const token = extraerToken(req);
+    const safeUserData = { ...result.rows[0] };
+    delete safeUserData.contrasena;
 
     await registrarAuditoria({
       accion: 'UPDATE',
@@ -133,16 +154,16 @@ const updateUsuario = async (req, res) => {
       tabla: 'usuarios',
       id_usuario: req.usuario?.id_usuario || null,
       details: {
-        ...result.rows[0],
-        token
+        ...safeUserData,
+        token: token || 'Sin token'
       },
       nombre_rol: req.usuario?.nombre_rol || 'Sistema'
     });
 
-    res.json(result.rows[0]);
+    res.json({ data: result.rows[0] });
   } catch (err) {
-    console.error(err);
-    res.status(500).send('Error del servidor');
+    console.error('Error en updateUsuario:', err);
+    res.status(500).json({ mensaje: 'Error del servidor', error: err.message });
   }
 };
 
@@ -157,10 +178,12 @@ const deleteUsuario = async (req, res) => {
       [id]
     );
     if (result.rows.length === 0) {
-      return res.status(404).send('Usuario no encontrado');
+      return res.status(404).json({ mensaje: 'Usuario no encontrado' });
     }
 
     const token = extraerToken(req);
+    const safeUserData = { ...result.rows[0] };
+    delete safeUserData.contrasena;
 
     await registrarAuditoria({
       accion: 'DELETE',
@@ -168,16 +191,16 @@ const deleteUsuario = async (req, res) => {
       tabla: 'usuarios',
       id_usuario: req.usuario?.id_usuario || null,
       details: {
-        ...result.rows[0],
-        token
+        ...safeUserData,
+        token: token || 'Sin token'
       },
       nombre_rol: req.usuario?.nombre_rol || 'Sistema'
     });
 
     res.json({ mensaje: 'Usuario eliminado correctamente' });
   } catch (err) {
-    console.error(err);
-    res.status(500).send('Error del servidor');
+    console.error('Error en deleteUsuario:', err);
+    res.status(500).json({ mensaje: 'Error del servidor', error: err.message });
   }
 };
 
@@ -230,7 +253,7 @@ const login = async (req, res) => {
       id_usuario: user.id_usuario,
       details: {
         usuario: user.usuario,
-        token
+        token: token || 'Sin token'
       },
       nombre_rol
     });
@@ -246,8 +269,8 @@ const login = async (req, res) => {
       permisos: permisosResult.rows
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ mensaje: 'Error del servidor' });
+    console.error('Error en login:', err);
+    res.status(500).json({ mensaje: 'Error del servidor', error: err.message });
   }
 };
 
@@ -256,17 +279,17 @@ const login = async (req, res) => {
 // ========================
 const tokenValido = async (req, res) => {
   const token = extraerToken(req);
-  console.log("Token recibido:", token);
+  console.log('Token recibido:', token);
   if (!token) {
     return res.status(401).json({ valido: false, error: 'Token no proporcionado' });
   }
 
   try {
     const decoded = jwt.verify(token, SECRET_KEY);
-    console.log("Token decodificado:", decoded);
+    console.log('Token decodificado:', decoded);
     res.json({ valido: true, usuario: decoded });
   } catch (error) {
-    console.error("Error al verificar token:", error.message);
+    console.error('Error al verificar token:', error.message);
     res.status(401).json({ valido: false, error: 'Token inválido o expirado' });
   }
 };
@@ -281,5 +304,6 @@ module.exports = {
   updateUsuario,
   deleteUsuario,
   login,
-  tokenValido
+  tokenValido,
+  autenticarToken // Exportar middleware
 };
