@@ -4,8 +4,8 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 // Clave secreta JWT
-const SECRET_KEY = process.env.JWT_SECRET || 'SegkeyAlSpCyMs46';
-//const SECRET_KEY = process.env.JWT_SECRET || 'mi_clave_ultra_segura';
+//const SECRET_KEY = process.env.JWT_SECRET || 'segkeyalspcyms';
+const SECRET_KEY = process.env.JWT_SECRET || 'mi_clave_ultra_segura';
 
 // ========================
 // Obtener todos los usuarios
