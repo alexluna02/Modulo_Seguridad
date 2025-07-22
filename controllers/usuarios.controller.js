@@ -13,7 +13,7 @@ function extraerToken(req) {
   return authHeader.split(' ')[1];
 }
 
-// Middleware de ejemplo (debes configurarlo en tu app)
+// Middleware para autenticar token
 const autenticarToken = (req, res, next) => {
   const token = extraerToken(req);
   if (!token) return res.status(401).json({ mensaje: 'Token no proporcionado' });
@@ -39,15 +39,16 @@ const getAllUsuarios = async (req, res) => {
       accion: 'SELECT',
       modulo: 'seguridad',
       tabla: 'usuarios',
-      id_usuario: req.usuario?.id_usuario || null,
+      id_usuario: req.usuario?.id_usuario || null, // ID del usuario autenticado
       details: {
         consulta: 'SELECT * FROM usuarios',
-        token: token || 'Sin token' // Evitar null en logs
+        token: token || 'Sin token',
+        usuario_autenticado: req.usuario?.usuario || 'Sin usuario autenticado' // Agregar usuario autenticado
       },
       nombre_rol: req.usuario?.nombre_rol || 'Sistema'
     });
 
-    res.json({ data: result.rows });
+    res.json({ data: result.rows, id_usuario_autenticado: req.usuario?.id_usuario || null });
   } catch (err) {
     console.error('Error en getAllUsuarios:', err);
     res.status(500).json({ mensaje: 'Error del servidor', error: err.message });
@@ -71,16 +72,17 @@ const getUsuarioById = async (req, res) => {
       accion: 'SELECT',
       modulo: 'seguridad',
       tabla: 'usuarios',
-      id_usuario: req.usuario?.id_usuario || null,
+      id_usuario: req.usuario?.id_usuario || null, // ID del usuario autenticado
       details: {
         consulta: 'SELECT * FROM usuarios WHERE id_usuario = $1',
         parametros: [id],
-        token: token || 'Sin token'
+        token: token || 'Sin token',
+        usuario_autenticado: req.usuario?.usuario || 'Sin usuario autenticado' // Agregar usuario autenticado
       },
       nombre_rol: req.usuario?.nombre_rol || 'Sistema'
     });
 
-    res.json({ data: result.rows[0] });
+    res.json({ data: result.rows[0], id_usuario_autenticado: req.usuario?.id_usuario || null });
   } catch (err) {
     console.error('Error en getUsuarioById:', err);
     res.status(500).json({ mensaje: 'Error del servidor', error: err.message });
@@ -103,22 +105,23 @@ const createUsuario = async (req, res) => {
     );
 
     const token = extraerToken(req);
-    const safeUserData = { ...result.rows[0] }; // Copia para sanitizar
-    delete safeUserData.contrasena; // Evitar guardar la contraseña
+    const safeUserData = { ...result.rows[0] };
+    delete safeUserData.contrasena;
 
     await registrarAuditoria({
       accion: 'INSERT',
       modulo: 'seguridad',
       tabla: 'usuarios',
-      id_usuario: req.usuario?.id_usuario || null,
+      id_usuario: req.usuario?.id_usuario || null, // ID del usuario autenticado
       details: {
         ...safeUserData,
-        token: token || 'Sin token'
+        token: token || 'Sin token',
+        usuario_autenticado: req.usuario?.usuario || 'Sin usuario autenticado' // Agregar usuario autenticado
       },
       nombre_rol: req.usuario?.nombre_rol || 'Sistema'
     });
 
-    res.status(201).json({ data: result.rows[0] });
+    res.status(201).json({ data: result.rows[0], id_usuario_autenticado: req.usuario?.id_usuario || null });
   } catch (err) {
     console.error('Error en createUsuario:', err);
     res.status(500).json({ mensaje: 'Error del servidor', error: err.message });
@@ -152,15 +155,16 @@ const updateUsuario = async (req, res) => {
       accion: 'UPDATE',
       modulo: 'seguridad',
       tabla: 'usuarios',
-      id_usuario: req.usuario?.id_usuario || null,
+      id_usuario: req.usuario?.id_usuario || null, // ID del usuario autenticado
       details: {
         ...safeUserData,
-        token: token || 'Sin token'
+        token: token || 'Sin token',
+        usuario_autenticado: req.usuario?.usuario || 'Sin usuario autenticado' // Agregar usuario autenticado
       },
       nombre_rol: req.usuario?.nombre_rol || 'Sistema'
     });
 
-    res.json({ data: result.rows[0] });
+    res.json({ data: result.rows[0], id_usuario_autenticado: req.usuario?.id_usuario || null });
   } catch (err) {
     console.error('Error en updateUsuario:', err);
     res.status(500).json({ mensaje: 'Error del servidor', error: err.message });
@@ -189,15 +193,16 @@ const deleteUsuario = async (req, res) => {
       accion: 'DELETE',
       modulo: 'seguridad',
       tabla: 'usuarios',
-      id_usuario: req.usuario?.id_usuario || null,
+      id_usuario: req.usuario?.id_usuario || null, // ID del usuario autenticado
       details: {
         ...safeUserData,
-        token: token || 'Sin token'
+        token: token || 'Sin token',
+        usuario_autenticado: req.usuario?.usuario || 'Sin usuario autenticado' // Agregar usuario autenticado
       },
       nombre_rol: req.usuario?.nombre_rol || 'Sistema'
     });
 
-    res.json({ mensaje: 'Usuario eliminado correctamente' });
+    res.json({ mensaje: 'Usuario eliminado correctamente', id_usuario_autenticado: req.usuario?.id_usuario || null });
   } catch (err) {
     console.error('Error en deleteUsuario:', err);
     res.status(500).json({ mensaje: 'Error del servidor', error: err.message });
@@ -250,10 +255,11 @@ const login = async (req, res) => {
       accion: 'LOGIN',
       modulo: id_modulo,
       tabla: '-',
-      id_usuario: user.id_usuario,
+      id_usuario: user.id_usuario, // ID del usuario que inicia sesión
       details: {
         usuario: user.usuario,
-        token: token || 'Sin token'
+        token: token || 'Sin token',
+        usuario_autenticado: user.usuario // Agregar usuario autenticado
       },
       nombre_rol
     });
@@ -266,7 +272,8 @@ const login = async (req, res) => {
         nombre: user.nombre,
         nombre_rol
       },
-      permisos: permisosResult.rows
+      permisos: permisosResult.rows,
+      id_usuario_autenticado: user.id_usuario // ID del usuario autenticado
     });
   } catch (err) {
     console.error('Error en login:', err);
@@ -287,7 +294,7 @@ const tokenValido = async (req, res) => {
   try {
     const decoded = jwt.verify(token, SECRET_KEY);
     console.log('Token decodificado:', decoded);
-    res.json({ valido: true, usuario: decoded });
+    res.json({ valido: true, usuario: decoded, id_usuario_autenticado: decoded.id_usuario });
   } catch (error) {
     console.error('Error al verificar token:', error.message);
     res.status(401).json({ valido: false, error: 'Token inválido o expirado' });
@@ -305,5 +312,5 @@ module.exports = {
   deleteUsuario,
   login,
   tokenValido,
-  autenticarToken // Exportar middleware
+  autenticarToken
 };
