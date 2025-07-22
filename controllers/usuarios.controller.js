@@ -54,7 +54,7 @@ const getAllUsuarios = async (req, res) => {
       details: {
         consulta: 'SELECT * FROM usuarios',
         token: token || 'Sin token',
-        usuario_autenticado: usuarioAutenticado?.usuario || 'Sin usuario autenticado'
+        Usuario: usuarioAutenticado?.usuario || 'Sin usuario autenticado'
       },
       nombre_rol: usuarioAutenticado?.nombre_rol || 'Sistema'
     });
@@ -89,7 +89,7 @@ const getUsuarioById = async (req, res) => {
         consulta: 'SELECT * FROM usuarios WHERE id_usuario = $1',
         parametros: [id],
         token: token || 'Sin token',
-        usuario_autenticado: usuarioAutenticado?.usuario || 'Sin usuario autenticado'
+        Usuario: usuarioAutenticado?.usuario || 'Sin usuario autenticado'
       },
       nombre_rol: usuarioAutenticado?.nombre_rol || 'Sistema'
     });
@@ -129,7 +129,7 @@ const createUsuario = async (req, res) => {
       details: {
         ...safeUserData,
         token: token || 'Sin token',
-        usuario_autenticado: usuarioAutenticado?.usuario || 'Sin usuario autenticado'
+        Usuario: usuarioAutenticado?.usuario || 'Sin usuario autenticado'
       },
       nombre_rol: usuarioAutenticado?.nombre_rol || 'Sistema'
     });
@@ -173,7 +173,7 @@ const updateUsuario = async (req, res) => {
       details: {
         ...safeUserData,
         token: token || 'Sin token',
-        usuario_autenticado: usuarioAutenticado?.usuario || 'Sin usuario autenticado'
+        Usuario: usuarioAutenticado?.usuario || 'Sin usuario autenticado'
       },
       nombre_rol: usuarioAutenticado?.nombre_rol || 'Sistema'
     });
@@ -212,7 +212,7 @@ const deleteUsuario = async (req, res) => {
       details: {
         ...safeUserData,
         token: token || 'Sin token',
-        usuario_autenticado: usuarioAutenticado?.usuario || 'Sin usuario autenticado'
+        Usuario: usuarioAutenticado?.usuario || 'Sin usuario autenticado'
       },
       nombre_rol: usuarioAutenticado?.nombre_rol || 'Sistema'
     });
@@ -274,7 +274,7 @@ const login = async (req, res) => {
       details: {
         usuario: user.usuario,
         token: token || 'Sin token',
-        usuario_autenticado: user.usuario
+        Usuario: user.usuario
       },
       nombre_rol
     });
