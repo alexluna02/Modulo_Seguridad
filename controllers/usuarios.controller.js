@@ -136,9 +136,16 @@ const createUsuario = async (req, res) => {
 
     res.status(201).json({ data: result.rows[0], id_usuario_autenticado: usuarioAutenticado?.id_usuario || null });
   } catch (err) {
-    console.error('Error en createUsuario:', err);
-    res.status(500).json({ mensaje: 'Error del servidor', error: err.message });
+  console.error('Error en createUsuario:', err);
+
+  // Código error Postgres para clave duplicada unique_violation es '23505'
+  if (err.code === '23505') {
+    return res.status(400).json({ mensaje: 'El nombre de usuario ya está en uso.' });
   }
+
+  res.status(500).json({ mensaje: 'Error del servidor', error: err.message });
+}
+
 };
 
 // ========================
